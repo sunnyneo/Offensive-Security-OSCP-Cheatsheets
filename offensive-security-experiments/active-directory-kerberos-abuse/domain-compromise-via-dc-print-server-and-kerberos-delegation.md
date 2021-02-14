@@ -5,7 +5,7 @@ This lab demonstrates an attack on Active Directory Domain Controller \(or any o
 * Attacker has to compromise a system that has an unrestricted kerberos delegation enabled.
 * Attacker finds a victim that runs a print server. In this lab this happened to be a Domain Controller.
 * Attacker coerces the DC to attempt authenticating to the attacker controlled host which has unrestricted kerberos delegation enabled. 
-  * This is done via RCP API  [`RpcRemoteFindFirstPrinterChangeNotificationEx`](https://msdn.microsoft.com/en-us/library/cc244813.aspx) that allows print clients to subscribe to notifications of changes on the print server.
+  * This is done via RPC API  [`RpcRemoteFindFirstPrinterChangeNotificationEx`](https://msdn.microsoft.com/en-us/library/cc244813.aspx) that allows print clients to subscribe to notifications of changes on the print server.
   * Once the API is called, the DC attempts to authenticate to the compromised host by revealing its TGT to the attacker controlled compromised system.
 * Attacker extracts `DC01's` TGT from the compromised system and impersonates the DC to carry a DCSync attack and dump domain member hashes.
 
@@ -18,7 +18,21 @@ Our environment for this lab is:
 * ws01 - attacker compromised host with kerberos delegation enabled \(attacker, server\)
 * dc01 - domain controller running a print service \(victim, target\)
 
-After compiling the amazing PoC [SpoolSample](https://github.com/leechristensen/SpoolSample) by [@tifkin\_](https://twitter.com/tifkin_), we execute it with two arguments `target` and `server`:
+We can check if a spool service is running on a remote host like so:
+
+```text
+ls \\dc01\pipe\spoolss
+```
+
+![](../../.gitbook/assets/image%20%28250%29.png)
+
+If the spoolss was not running, we would receive an error.
+
+Another way to check if the spoolss is running on a remote machine is:
+
+![](../../.gitbook/assets/image%20%28445%29.png)
+
+Now, after compiling the amazing PoC [SpoolSample](https://github.com/leechristensen/SpoolSample) by [@tifkin\_](https://twitter.com/tifkin_), we execute it with two arguments `target` and `server` \(DC with spoolss running on it\):
 
 ```csharp
 .\SpoolSample.exe dc01 ws01
